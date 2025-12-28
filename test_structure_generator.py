@@ -313,15 +313,40 @@ def print_tree(directory, prefix=""):
 
 
 if __name__ == "__main__":
-    # Get base directory from command line or use default
-    if len(sys.argv) > 1:
-        base_dir = sys.argv[1]
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="Test structure generator for File Organizer Tool"
+    )
+    parser.add_argument(
+        "base_dir",
+        nargs='?',
+        default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_env"),
+        help="Base directory for test environment (default: ./test_env)"
+    )
+    parser.add_argument(
+        "--tree", "-t",
+        action="store_true",
+        help="Only print directory tree, don't create/modify anything"
+    )
+    
+    args = parser.parse_args()
+    
+    if args.tree:
+        # Only print tree of existing directory
+        if os.path.exists(args.base_dir):
+            print(f"Directory structure of: {args.base_dir}")
+            print("=" * 60)
+            print(f"{os.path.basename(args.base_dir)}/")
+            print_tree(args.base_dir)
+        else:
+            print(f"Error: Directory does not exist: {args.base_dir}")
+            sys.exit(1)
     else:
-        base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_env")
-    
-    target, source1, source2 = setup_test_environment(base_dir)
-    
-    print("\n\nGenerated directory structure:")
-    print("=" * 60)
-    print(f"{os.path.basename(base_dir)}/")
-    print_tree(base_dir)
+        # Create test environment
+        target, source1, source2 = setup_test_environment(args.base_dir)
+        
+        print("\n\nGenerated directory structure:")
+        print("=" * 60)
+        print(f"{os.path.basename(args.base_dir)}/")
+        print_tree(args.base_dir)
