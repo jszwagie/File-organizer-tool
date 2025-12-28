@@ -23,6 +23,8 @@ class ActionExecutor:
             ActionType.RENAME: False,
             ActionType.CHMOD: False,
             ActionType.MOVE: False,
+            ActionType.COPY: False,
+            ActionType.SKIP: False,
         }
 
     def process_suggestions(self, suggestions):
@@ -89,6 +91,7 @@ class ActionExecutor:
             ActionType.RENAME: self._do_rename,
             ActionType.CHMOD: self._do_chmod,
             ActionType.MOVE: self._do_move,
+            ActionType.COPY: self._do_copy,
             ActionType.SKIP: self._do_skip,
         }
         
@@ -132,6 +135,22 @@ class ActionExecutor:
         
         shutil.move(action.file_entry.path, target_path)
         print(f"Moved to: {target_path}")
+
+    def _do_copy(self, action):
+        """Copy a file to target path (keeps original)."""
+        target_dir = os.path.dirname(action.target)
+        
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
+        
+        # Handle collision at target
+        target_path = action.target
+        if os.path.exists(target_path):
+            filename = os.path.basename(target_path)
+            target_path = self._resolve_collision(target_dir, filename)
+        
+        shutil.copy2(action.file_entry.path, target_path)
+        print(f"Copied to: {target_path}")
 
     def _do_skip(self, action):
         """Skip action (no operation)."""

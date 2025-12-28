@@ -1,2 +1,5 @@
 instr.md
 .clean_files
+test_env/
+src/__pycache__/
+instr-full.md

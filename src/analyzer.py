@@ -12,6 +12,7 @@ class ActionType(Enum):
     """Types of actions that can be performed on files."""
     DELETE = "DELETE"
     MOVE = "MOVE"
+    COPY = "COPY"
     RENAME = "RENAME"
     CHMOD = "CHMOD"
     SKIP = "SKIP"
@@ -45,11 +46,12 @@ class SuggestedAction:
 class Analyzer:
     """Analyzes files and generates organization suggestions.
     
-    Performs four types of analysis:
+    Performs five types of analysis:
     1. Garbage collection (empty/temporary files)
     2. Sanitization (bad characters, permissions)
     3. Deduplication (identical content)
     4. Versioning (same name, different content)
+    5. Consolidation (unique files from Y directories to X)
     """
     
     def __init__(self, config):
@@ -83,7 +85,11 @@ class Analyzer:
         duplicate_paths = self._analyze_duplicates(files)
         
         # Phase 4: Handle version conflicts (excluding duplicates)
-        self._analyze_versions(files, duplicate_paths)
+        handled_paths = self._analyze_versions(files, duplicate_paths)
+        
+        # Phase 5: Consolidate unique files from Y to X
+        all_handled = duplicate_paths | handled_paths
+        self._analyze_consolidation(files, all_handled)
         
         return self._suggestions
 
@@ -177,7 +183,12 @@ class Analyzer:
         Args:
             files: List of FileEntry objects.
             exclude_paths: Set of paths to exclude (already handled).
+            
+        Returns:
+            set[str]: Paths of files handled in versioning.
         """
+        handled_paths = set()
+        
         # Group by filename
         by_name = {}
         for f in files:
@@ -187,6 +198,9 @@ class Analyzer:
         for filename, group in by_name.items():
             if len(group) < 2:
                 continue
+            
+            # Mark all as handled
+            handled_paths.update(f.path for f in group)
             
             # Keep newest as current version
             group.sort(key=lambda x: x.mtime, reverse=True)
@@ -211,6 +225,29 @@ class Analyzer:
                     self._add_suggestion(old, ActionType.MOVE,
                                          f"Older version (current: {newest.path})",
                                          new_path)
+        
+        return handled_paths
+
+    def _analyze_consolidation(self, files, exclude_paths):
+        """Consolidate unique files from source directories to target.
+        
+        Files that exist only in Y directories and haven't been handled
+        by other phases should be moved/copied to X.
+        
+        Args:
+            files: List of FileEntry objects.
+            exclude_paths: Set of paths already handled.
+        """
+        for f in files:
+            if f.path in exclude_paths:
+                continue
+            
+            # File not yet handled - check if it's in a source directory
+            if not self._is_in_target(f.path):
+                new_path = self._unique_path(f.name)
+                self._add_suggestion(f, ActionType.MOVE,
+                                     "Unique file in source - consolidate to target",
+                                     new_path)
 
     # Helper methods
     
