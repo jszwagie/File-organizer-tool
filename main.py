@@ -15,6 +15,12 @@ def main():
     scanner = FileScanner()
     all_files = scanner.scan([config.target_dir] + config.source_dirs)
     print(f"Total files found: {len(all_files)}")
+    
+    # Report any scanning errors
+    if scanner.get_errors():
+        print("\nWarnings during scan:")
+        for error in scanner.get_errors():
+            print(f"  - {error}")
 
     # Analyze and suggest actions
     analyzer = Analyzer(config)
