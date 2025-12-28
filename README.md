@@ -88,7 +88,6 @@ Program działa w 4 kolejnych fazach, każda z ponownym skanowaniem struktury ka
 
 ### FAZA 3: Deduplikacja i wersjonowanie
 - **DELETE**: Usunięcie duplikatów (pliki o identycznej zawartości) - zachowuje najstarszy
-- **MOVE**: Przeniesienie oryginału do katalogu docelowego (jeśli nie jest tam)
 - **DELETE**: Usunięcie starszych wersji plików o tej samej nazwie - zachowuje najnowszy
 
 ### FAZA 4: Konsolidacja

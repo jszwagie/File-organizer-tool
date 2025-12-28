@@ -121,33 +121,29 @@ class ActionExecutor:
         print(f"Permissions set to: {action.target}")
 
     def _do_move(self, action):
-        """Move a file to target path."""
+        """Move a file to target path (overwrites existing)."""
         target_dir = os.path.dirname(action.target)
 
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
 
-        # Handle collision at target
+        # Overwrite existing file if present
         target_path = action.target
         if os.path.exists(target_path):
-            filename = os.path.basename(target_path)
-            target_path = self._resolve_collision(target_dir, filename)
+            os.remove(target_path)
 
         shutil.move(action.file_entry.path, target_path)
         print(f"Moved to: {target_path}")
 
     def _do_copy(self, action):
-        """Copy a file to target path (keeps original)."""
+        """Copy a file to target path (keeps original, overwrites target)."""
         target_dir = os.path.dirname(action.target)
 
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
 
-        # Handle collision at target
+        # Overwrite existing file if present
         target_path = action.target
-        if os.path.exists(target_path):
-            filename = os.path.basename(target_path)
-            target_path = self._resolve_collision(target_dir, filename)
 
         shutil.copy2(action.file_entry.path, target_path)
         print(f"Copied to: {target_path}")

@@ -222,19 +222,10 @@ class Analyzer:
             group.sort(key=lambda x: x.mtime)
             original, *duplicates = group
 
-            duplicate_paths.update(f.path for f in group)
+            # Only mark duplicates as handled (original goes to consolidation)
+            duplicate_paths.update(f.path for f in duplicates)
 
-            # Move original to target if needed
-            if not self._is_in_target(original.path):
-                new_path = self._unique_path(original.name)
-                self._add_suggestion(
-                    original,
-                    ActionType.MOVE,
-                    "Original not in target directory",
-                    new_path,
-                )
-
-            # Delete duplicates
+            # Delete duplicates (original will be moved in consolidation phase)
             for dup in duplicates:
                 self._add_suggestion(
                     dup, ActionType.DELETE, f"Duplicate of {original.path}"
@@ -285,20 +276,14 @@ class Analyzer:
             if len(group) < 2:
                 continue
 
-            handled_paths.update(f.path for f in group)
-
             # Keep newest as current version
             group.sort(key=lambda x: x.mtime, reverse=True)
             newest, *older = group
 
-            # Move newest to target if needed (or keep if already there)
-            if not self._is_in_target(newest.path):
-                new_path = os.path.join(self._target_dir, newest.name)
-                self._add_suggestion(
-                    newest, ActionType.MOVE, "Newest version - move to target", new_path
-                )
+            # Only mark older versions as handled (newest goes to consolidation)
+            handled_paths.update(f.path for f in older)
 
-            # Delete all older versions
+            # Delete all older versions (newest will be moved in consolidation phase)
             for old in older:
                 self._add_suggestion(
                     old,
