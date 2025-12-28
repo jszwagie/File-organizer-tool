@@ -1,36 +1,53 @@
+#!/usr/bin/env python3
+"""
+File Consolidation and Cleaning Tool
+
+Recursively organizes, deduplicates, and consolidates files from multiple
+source directories into a single target directory.
+
+Usage:
+    python main.py <target_dir> <source_dir1> [source_dir2 ...]
+"""
+
 from src.config import load_configuration
 from src.scanner import FileScanner
 from src.analyzer import Analyzer
 from src.executor import ActionExecutor
 
+
 def main():
-    # Load configuration and user input
+    """Main entry point for the file organizer tool."""
     config = load_configuration()
     
-    print(f"--- Start organizing ---")
-    print(f"Main directory (X): {config.target_dir}")
-    print(f"Additional directories to scan (Y): {config.source_dirs}")
+    print("=" * 50)
+    print("File Consolidation and Cleaning Tool")
+    print("=" * 50)
+    print(f"Target directory (X): {config.target_dir}")
+    print(f"Source directories (Y): {', '.join(config.source_dirs)}")
+    print()
 
-    # Scan all files in given directories
+    # Phase 1: Scan
+    print("Scanning directories...")
     scanner = FileScanner()
     all_files = scanner.scan([config.target_dir] + config.source_dirs)
-    print(f"Total files found: {len(all_files)}")
+    print(f"Found {len(all_files)} file(s)")
     
-    # Report any scanning errors
-    if scanner.get_errors():
-        print("\nWarnings during scan:")
-        for error in scanner.get_errors():
-            print(f"  - {error}")
+    for error in scanner.get_errors():
+        print(f"  Warning: {error}")
 
-    # Analyze and suggest actions
+    # Phase 2: Analyze
+    print("\nAnalyzing files...")
     analyzer = Analyzer(config)
     suggestions = analyzer.analyze(all_files, config.target_dir)
-
-    # Perform actions based on sugestions and user confirmation
+    
+    # Phase 3: Execute
     executor = ActionExecutor()
     executor.process_suggestions(suggestions)
 
-    print("\n--- Finished ---")
+    print("\n" + "=" * 50)
+    print("Finished")
+    print("=" * 50)
+
 
 if __name__ == "__main__":
     main()

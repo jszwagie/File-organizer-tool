@@ -1,91 +1,140 @@
-import os
+"""
+File scanning module.
+
+Provides functionality to recursively scan directories and collect file metadata.
+"""
+
 import hashlib
+import os
 import stat
 
+
 class FileEntry:
+    """Represents a single file with its metadata.
+    
+    Attributes:
+        path: Absolute path to the file.
+        name: Filename (basename).
+        size: File size in bytes.
+        mtime: Modification time (Unix timestamp).
+        mode: File permission bits.
+    """
+    
     def __init__(self, path):
+        """Initialize file entry with metadata.
+        
+        Args:
+            path: Path to the file.
+            
+        Raises:
+            OSError: If file cannot be accessed.
+        """
         self.path = os.path.abspath(path)
-        self.stat = os.stat(path)  # follows symlinks by default
-        self.size = self.stat.st_size
-        self.mtime = self.stat.st_mtime
-        self.mode = stat.S_IMODE(self.stat.st_mode)
         self.name = os.path.basename(path)
-        self._hash = None  # Lazy loading
+        
+        file_stat = os.stat(path)
+        self.size = file_stat.st_size
+        self.mtime = file_stat.st_mtime
+        self.mode = stat.S_IMODE(file_stat.st_mode)
+        
+        self._hash = None
 
     def get_hash(self):
-        """Calculate hash only when needed (optimization)."""
-        if self._hash is None:
-            # Hashing using MD5 for speed (sufficient for deduplication)
-            hasher = hashlib.md5()
-            try:
-                with open(self.path, 'rb') as f:
-                    buf = f.read(65536)
-                    while len(buf) > 0:
-                        hasher.update(buf)
-                        buf = f.read(65536)
-                self._hash = hasher.hexdigest()
-            except (IOError, OSError):
-                self._hash = None  # Handle read errors
+        """Calculate MD5 hash of file content (lazy-loaded).
+        
+        Returns:
+            str: Hex digest of file hash, or None if file cannot be read.
+        """
+        if self._hash is not None:
+            return self._hash
+            
+        hasher = hashlib.md5()
+        try:
+            with open(self.path, 'rb') as f:
+                for chunk in iter(lambda: f.read(65536), b''):
+                    hasher.update(chunk)
+            self._hash = hasher.hexdigest()
+        except (IOError, OSError):
+            self._hash = None
+            
         return self._hash
 
     def __repr__(self):
-        return f"FileEntry({self.name}, size={self.size}, mode={oct(self.mode)})"
+        return f"FileEntry({self.name!r}, size={self.size}, mode={oct(self.mode)})"
 
 
 class FileScanner:
+    """Recursively scans directories for files.
+    
+    Attributes:
+        follow_symlinks: Whether to follow symbolic links.
+        errors: List of errors encountered during scanning.
+    """
+    
     def __init__(self, follow_symlinks=False):
-        """Initialize scanner with options.
+        """Initialize scanner.
         
         Args:
-            follow_symlinks: If False, symlinks are skipped (safer default).
+            follow_symlinks: If True, follow symbolic links (default: False).
         """
         self.follow_symlinks = follow_symlinks
-        self.errors = []  # Collect errors during scanning
+        self.errors = []
 
     def scan(self, directories):
-        """Scan directories recursively and return list of FileEntry objects.
+        """Scan directories recursively for files.
         
         Args:
             directories: List of directory paths to scan.
             
         Returns:
-            List of FileEntry objects for all regular files found.
+            list[FileEntry]: List of file entries found.
         """
         files_found = []
-        seen_paths = set()  # Avoid duplicates from overlapping directories
+        seen_paths = set()
         
         for directory in directories:
-            directory = os.path.abspath(directory)
-            if not os.path.isdir(directory):
-                self.errors.append(f"Not a directory or doesn't exist: {directory}")
-                continue
-                
-            # os.walk handles special characters in names correctly
-            for root, dirs, files in os.walk(directory, followlinks=self.follow_symlinks):
-                for name in files:
-                    full_path = os.path.join(root, name)
-                    abs_path = os.path.abspath(full_path)
-                    
-                    # Skip if already seen (overlapping directories)
-                    if abs_path in seen_paths:
-                        continue
-                    seen_paths.add(abs_path)
-                    
-                    # Skip symlinks if not following them
-                    if os.path.islink(full_path) and not self.follow_symlinks:
-                        continue
-                    
-                    # Skip if not a regular file
-                    if not os.path.isfile(full_path):
-                        continue
-                    
-                    try:
-                        files_found.append(FileEntry(full_path))
-                    except (OSError, PermissionError) as e:
-                        self.errors.append(f"Cannot access {full_path}: {e}")
+            self._scan_directory(directory, files_found, seen_paths)
                         
         return files_found
 
+    def _scan_directory(self, directory, files_found, seen_paths):
+        """Scan a single directory tree.
+        
+        Args:
+            directory: Directory path to scan.
+            files_found: List to append found files to.
+            seen_paths: Set of already processed paths.
+        """
+        directory = os.path.abspath(directory)
+        
+        if not os.path.isdir(directory):
+            self.errors.append(f"Not a directory: {directory}")
+            return
+            
+        for root, _, files in os.walk(directory, followlinks=self.follow_symlinks):
+            for name in files:
+                full_path = os.path.join(root, name)
+                abs_path = os.path.abspath(full_path)
+                
+                if abs_path in seen_paths:
+                    continue
+                seen_paths.add(abs_path)
+                
+                if os.path.islink(full_path) and not self.follow_symlinks:
+                    continue
+                    
+                if not os.path.isfile(full_path):
+                    continue
+                
+                try:
+                    files_found.append(FileEntry(full_path))
+                except (OSError, PermissionError) as e:
+                    self.errors.append(f"Cannot access {full_path}: {e}")
+
     def get_errors(self):
-        """Return list of errors encountered during scanning."""
+        """Get list of errors encountered during scanning.
+        
+        Returns:
+            list[str]: Error messages.
+        """
         return self.errors
