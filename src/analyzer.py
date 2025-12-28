@@ -5,7 +5,7 @@ Analyzes scanned files and generates suggested actions for organization.
 """
 
 import os
-from enum import Enum
+from enum import Enum, auto
 
 
 class ActionType(Enum):
@@ -16,6 +16,15 @@ class ActionType(Enum):
     RENAME = "RENAME"
     CHMOD = "CHMOD"
     SKIP = "SKIP"
+
+
+class AnalysisMode(Enum):
+    """Analysis modes for selective file processing."""
+    SANITIZATION = auto()   # RENAME (bad chars) + CHMOD (permissions)
+    GARBAGE = auto()        # DELETE empty and temp files
+    DEDUPLICATION = auto()  # DELETE duplicates, MOVE originals
+    CONSOLIDATION = auto()  # MOVE unique files from Y to X
+    ALL = auto()            # All of the above
 
 
 class SuggestedAction:
@@ -46,12 +55,12 @@ class SuggestedAction:
 class Analyzer:
     """Analyzes files and generates organization suggestions.
     
-    Performs five types of analysis:
-    1. Garbage collection (empty/temporary files)
-    2. Sanitization (bad characters, permissions)
-    3. Deduplication (identical content)
-    4. Versioning (same name, different content)
-    5. Consolidation (unique files from Y directories to X)
+    Supports selective analysis modes:
+    - SANITIZATION: Fix bad characters in names and normalize permissions
+    - GARBAGE: Remove empty and temporary files  
+    - DEDUPLICATION: Remove duplicate files, handle versioning
+    - CONSOLIDATION: Move unique files from source dirs to target
+    - ALL: Run all analysis phases
     """
     
     def __init__(self, config):
@@ -62,12 +71,13 @@ class Analyzer:
         """
         self.config = config
 
-    def analyze(self, files, target_dir):
+    def analyze(self, files, target_dir, mode=AnalysisMode.ALL):
         """Analyze files and generate suggested actions.
         
         Args:
             files: List of FileEntry objects to analyze.
             target_dir: Target directory path for consolidation.
+            mode: AnalysisMode enum specifying which analysis to perform.
             
         Returns:
             list[SuggestedAction]: List of suggested actions.
@@ -75,23 +85,48 @@ class Analyzer:
         self._target_dir = os.path.abspath(target_dir)
         self._suggestions = []
         
-        # Phase 1: Remove garbage files from analysis
-        files = self._analyze_garbage(files)
-        
-        # Phase 2: Check sanitization issues
-        self._analyze_sanitization(files)
-        
-        # Phase 3: Find and handle duplicates
-        duplicate_paths = self._analyze_duplicates(files)
-        
-        # Phase 4: Handle version conflicts (excluding duplicates)
-        handled_paths = self._analyze_versions(files, duplicate_paths)
-        
-        # Phase 5: Consolidate unique files from Y to X
-        all_handled = duplicate_paths | handled_paths
-        self._analyze_consolidation(files, all_handled)
+        if mode == AnalysisMode.SANITIZATION:
+            self._analyze_sanitization(files)
+            
+        elif mode == AnalysisMode.GARBAGE:
+            self._analyze_garbage(files)
+            
+        elif mode == AnalysisMode.DEDUPLICATION:
+            # Filter out garbage files first (don't process them)
+            clean_files = self._filter_garbage(files)
+            duplicate_paths = self._analyze_duplicates(clean_files)
+            self._analyze_versions(clean_files, duplicate_paths)
+            
+        elif mode == AnalysisMode.CONSOLIDATION:
+            # Filter garbage, find what's already handled
+            clean_files = self._filter_garbage(files)
+            duplicate_paths = self._find_duplicate_paths(clean_files)
+            version_paths = self._find_version_paths(clean_files, duplicate_paths)
+            all_handled = duplicate_paths | version_paths
+            self._analyze_consolidation(clean_files, all_handled)
+            
+        elif mode == AnalysisMode.ALL:
+            # Original behavior - all phases
+            files = self._analyze_garbage(files)
+            self._analyze_sanitization(files)
+            duplicate_paths = self._analyze_duplicates(files)
+            handled_paths = self._analyze_versions(files, duplicate_paths)
+            all_handled = duplicate_paths | handled_paths
+            self._analyze_consolidation(files, all_handled)
         
         return self._suggestions
+
+    def _filter_garbage(self, files):
+        """Filter out empty and temporary files without generating suggestions.
+        
+        Args:
+            files: List of FileEntry objects.
+            
+        Returns:
+            list[FileEntry]: Files that are not garbage.
+        """
+        return [f for f in files 
+                if f.size > 0 and not self._is_temp_file(f.name)]
 
     def _analyze_garbage(self, files):
         """Identify empty and temporary files.
@@ -122,7 +157,7 @@ class Analyzer:
             files: List of FileEntry objects.
         """
         for f in files:
-            # Check filename
+            # Check filename for bad characters
             sanitized_name = self._sanitize_filename(f.name)
             if sanitized_name != f.name:
                 self._add_suggestion(f, ActionType.RENAME, 
@@ -135,6 +170,28 @@ class Analyzer:
                                      f"Non-standard permissions ({current_perm})",
                                      self.config.default_perm)
 
+    def _find_duplicate_paths(self, files):
+        """Find paths of files that are duplicates (without generating suggestions).
+        
+        Args:
+            files: List of FileEntry objects.
+            
+        Returns:
+            set[str]: Paths of duplicate files.
+        """
+        by_hash = {}
+        for f in files:
+            h = f.get_hash()
+            if h:
+                by_hash.setdefault(h, []).append(f)
+        
+        duplicate_paths = set()
+        for group in by_hash.values():
+            if len(group) >= 2:
+                duplicate_paths.update(f.path for f in group)
+        
+        return duplicate_paths
+
     def _analyze_duplicates(self, files):
         """Find files with identical content and suggest deduplication.
         
@@ -144,7 +201,6 @@ class Analyzer:
         Returns:
             set[str]: Paths of files handled as duplicates.
         """
-        # Group by content hash
         by_hash = {}
         for f in files:
             h = f.get_hash()
@@ -161,7 +217,6 @@ class Analyzer:
             group.sort(key=lambda x: x.mtime)
             original, *duplicates = group
             
-            # Mark all as handled
             duplicate_paths.update(f.path for f in group)
             
             # Move original to target if needed
@@ -177,6 +232,28 @@ class Analyzer:
         
         return duplicate_paths
 
+    def _find_version_paths(self, files, exclude_paths):
+        """Find paths of files with version conflicts (without generating suggestions).
+        
+        Args:
+            files: List of FileEntry objects.
+            exclude_paths: Set of paths to exclude.
+            
+        Returns:
+            set[str]: Paths of files with version conflicts.
+        """
+        by_name = {}
+        for f in files:
+            if f.path not in exclude_paths:
+                by_name.setdefault(f.name, []).append(f)
+        
+        version_paths = set()
+        for group in by_name.values():
+            if len(group) >= 2:
+                version_paths.update(f.path for f in group)
+        
+        return version_paths
+
     def _analyze_versions(self, files, exclude_paths):
         """Handle files with same name but different content.
         
@@ -189,7 +266,6 @@ class Analyzer:
         """
         handled_paths = set()
         
-        # Group by filename
         by_name = {}
         for f in files:
             if f.path not in exclude_paths:
@@ -199,40 +275,27 @@ class Analyzer:
             if len(group) < 2:
                 continue
             
-            # Mark all as handled
             handled_paths.update(f.path for f in group)
             
             # Keep newest as current version
             group.sort(key=lambda x: x.mtime, reverse=True)
             newest, *older = group
             
-            # Move newest to target if needed
+            # Move newest to target if needed (or keep if already there)
             if not self._is_in_target(newest.path):
                 new_path = os.path.join(self._target_dir, newest.name)
                 self._add_suggestion(newest, ActionType.MOVE,
-                                     "Current version - consolidate to target", new_path)
+                                     "Newest version - move to target", new_path)
             
-            # Handle older versions
-            for i, old in enumerate(older, start=1):
-                version_name = self._versioned_name(old.name, len(older) - i + 1)
-                
-                if self._is_in_target(old.path):
-                    self._add_suggestion(old, ActionType.RENAME,
-                                         f"Older version (current: {newest.path})",
-                                         version_name)
-                else:
-                    new_path = os.path.join(self._target_dir, version_name)
-                    self._add_suggestion(old, ActionType.MOVE,
-                                         f"Older version (current: {newest.path})",
-                                         new_path)
+            # Delete all older versions
+            for old in older:
+                self._add_suggestion(old, ActionType.DELETE,
+                                     f"Older version (keeping newest: {newest.path})")
         
         return handled_paths
 
     def _analyze_consolidation(self, files, exclude_paths):
         """Consolidate unique files from source directories to target.
-        
-        Files that exist only in Y directories and haven't been handled
-        by other phases should be moved/copied to X.
         
         Args:
             files: List of FileEntry objects.
@@ -242,7 +305,6 @@ class Analyzer:
             if f.path in exclude_paths:
                 continue
             
-            # File not yet handled - check if it's in a source directory
             if not self._is_in_target(f.path):
                 new_path = self._unique_path(f.name)
                 self._add_suggestion(f, ActionType.MOVE,

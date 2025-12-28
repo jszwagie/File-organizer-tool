@@ -11,7 +11,7 @@ Usage:
 
 from src.config import load_configuration
 from src.scanner import FileScanner
-from src.analyzer import Analyzer, ActionType
+from src.analyzer import Analyzer, AnalysisMode
 from src.executor import ActionExecutor
 
 
@@ -34,6 +34,34 @@ def scan_directories(config):
     return all_files
 
 
+def run_phase(config, mode, phase_name):
+    """Run a single analysis phase.
+    
+    Args:
+        config: AppConfig object.
+        mode: AnalysisMode for this phase.
+        phase_name: Human-readable phase name.
+        
+    Returns:
+        bool: True if any actions were executed.
+    """
+    print(f"\nScanning directories...")
+    all_files = scan_directories(config)
+    
+    print(f"Analyzing: {phase_name}...")
+    analyzer = Analyzer(config)
+    suggestions = analyzer.analyze(all_files, config.target_dir, mode)
+    
+    if suggestions:
+        print(f"Found {len(suggestions)} action(s).")
+        executor = ActionExecutor()
+        executor.process_suggestions(suggestions)
+        return True
+    else:
+        print("No actions needed.")
+        return False
+
+
 def main():
     """Main entry point for the file organizer tool."""
     config = load_configuration()
@@ -45,60 +73,47 @@ def main():
     print(f"Source directories (Y): {', '.join(config.source_dirs)}")
     
     # =================================================================
-    # PHASE 1: Sanitization (RENAME, CHMOD)
-    # These operations don't change file locations, safe to do first
+    # PHASE 1: Sanitization (RENAME bad chars, CHMOD permissions)
     # =================================================================
     print("\n" + "-" * 50)
-    print("PHASE 1: Sanitization (rename, chmod)")
+    print("PHASE 1: Sanitization")
+    print("  - Rename files with invalid characters")
+    print("  - Fix non-standard permissions")
     print("-" * 50)
     
-    print("\nScanning directories...")
-    all_files = scan_directories(config)
-    
-    print("\nAnalyzing for sanitization issues...")
-    analyzer = Analyzer(config)
-    all_suggestions = analyzer.analyze(all_files, config.target_dir)
-    
-    # Filter only RENAME and CHMOD actions
-    sanitization_actions = [
-        s for s in all_suggestions 
-        if s.action_type in (ActionType.RENAME, ActionType.CHMOD)
-    ]
-    
-    if sanitization_actions:
-        print(f"\nFound {len(sanitization_actions)} sanitization action(s).")
-        executor = ActionExecutor()
-        executor.process_suggestions(sanitization_actions)
-    else:
-        print("\nNo sanitization issues found.")
+    run_phase(config, AnalysisMode.SANITIZATION, "sanitization issues")
     
     # =================================================================
-    # PHASE 2: Garbage collection, Deduplication, Versioning, Consolidation
-    # Rescan after renames to get updated paths
+    # PHASE 2: Garbage Collection (DELETE empty/temp files)
     # =================================================================
     print("\n" + "-" * 50)
-    print("PHASE 2: Cleanup & Consolidation (delete, move)")
+    print("PHASE 2: Garbage Collection")
+    print("  - Delete empty files (0 bytes)")
+    print("  - Delete temporary files")
     print("-" * 50)
     
-    print("\nRescanning directories after sanitization...")
-    all_files = scan_directories(config)
+    run_phase(config, AnalysisMode.GARBAGE, "garbage files")
     
-    print("\nAnalyzing for cleanup and consolidation...")
-    analyzer = Analyzer(config)
-    all_suggestions = analyzer.analyze(all_files, config.target_dir)
+    # =================================================================
+    # PHASE 3: Deduplication (DELETE duplicates, handle versions)
+    # =================================================================
+    print("\n" + "-" * 50)
+    print("PHASE 3: Deduplication & Versioning")
+    print("  - Remove duplicate files (keep oldest)")
+    print("  - Handle files with same name, different content")
+    print("-" * 50)
     
-    # Filter DELETE and MOVE actions (skip RENAME/CHMOD as they're done)
-    cleanup_actions = [
-        s for s in all_suggestions 
-        if s.action_type in (ActionType.DELETE, ActionType.MOVE, ActionType.COPY)
-    ]
+    run_phase(config, AnalysisMode.DEDUPLICATION, "duplicates and versions")
     
-    if cleanup_actions:
-        print(f"\nFound {len(cleanup_actions)} cleanup/consolidation action(s).")
-        executor = ActionExecutor()
-        executor.process_suggestions(cleanup_actions)
-    else:
-        print("\nNo cleanup or consolidation needed.")
+    # =================================================================
+    # PHASE 4: Consolidation (MOVE unique files from Y to X)
+    # =================================================================
+    print("\n" + "-" * 50)
+    print("PHASE 4: Consolidation")
+    print("  - Move unique files from source to target")
+    print("-" * 50)
+    
+    run_phase(config, AnalysisMode.CONSOLIDATION, "files to consolidate")
 
     print("\n" + "=" * 50)
     print("Finished")

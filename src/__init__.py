@@ -10,7 +10,7 @@ Modules:
 
 from .config import AppConfig, load_configuration
 from .scanner import FileEntry, FileScanner
-from .analyzer import ActionType, SuggestedAction, Analyzer
+from .analyzer import ActionType, AnalysisMode, SuggestedAction, Analyzer
 from .executor import ActionExecutor
 
 __all__ = [
@@ -19,6 +19,7 @@ __all__ = [
     'FileEntry',
     'FileScanner',
     'ActionType',
+    'AnalysisMode',
     'SuggestedAction',
     'Analyzer',
     'ActionExecutor',
