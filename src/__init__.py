@@ -14,13 +14,13 @@ from .analyzer import ActionType, AnalysisMode, SuggestedAction, Analyzer
 from .executor import ActionExecutor
 
 __all__ = [
-    'AppConfig',
-    'load_configuration',
-    'FileEntry',
-    'FileScanner',
-    'ActionType',
-    'AnalysisMode',
-    'SuggestedAction',
-    'Analyzer',
-    'ActionExecutor',
+    "AppConfig",
+    "load_configuration",
+    "FileEntry",
+    "FileScanner",
+    "ActionType",
+    "AnalysisMode",
+    "SuggestedAction",
+    "Analyzer",
+    "ActionExecutor",
 ]

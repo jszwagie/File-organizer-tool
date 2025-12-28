@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 File Consolidation and Cleaning Tool
 
@@ -17,41 +16,41 @@ from src.executor import ActionExecutor
 
 def scan_directories(config):
     """Scan all directories and return file list.
-    
+
     Args:
         config: AppConfig object.
-        
+
     Returns:
         list[FileEntry]: List of scanned files.
     """
     scanner = FileScanner()
     all_files = scanner.scan([config.target_dir] + config.source_dirs)
     print(f"Found {len(all_files)} file(s)")
-    
+
     for error in scanner.get_errors():
         print(f"  Warning: {error}")
-    
+
     return all_files
 
 
 def run_phase(config, mode, phase_name):
     """Run a single analysis phase.
-    
+
     Args:
         config: AppConfig object.
         mode: AnalysisMode for this phase.
         phase_name: Human-readable phase name.
-        
+
     Returns:
         bool: True if any actions were executed.
     """
     print(f"\nScanning directories...")
     all_files = scan_directories(config)
-    
+
     print(f"Analyzing: {phase_name}...")
     analyzer = Analyzer(config)
     suggestions = analyzer.analyze(all_files, config.target_dir, mode)
-    
+
     if suggestions:
         print(f"Found {len(suggestions)} action(s).")
         executor = ActionExecutor()
@@ -63,15 +62,14 @@ def run_phase(config, mode, phase_name):
 
 
 def main():
-    """Main entry point for the file organizer tool."""
     config = load_configuration()
-    
+
     print("=" * 50)
     print("File Consolidation and Cleaning Tool")
     print("=" * 50)
     print(f"Target directory (X): {config.target_dir}")
     print(f"Source directories (Y): {', '.join(config.source_dirs)}")
-    
+
     # =================================================================
     # PHASE 1: Sanitization (RENAME bad chars, CHMOD permissions)
     # =================================================================
@@ -80,9 +78,9 @@ def main():
     print("  - Rename files with invalid characters")
     print("  - Fix non-standard permissions")
     print("-" * 50)
-    
+
     run_phase(config, AnalysisMode.SANITIZATION, "sanitization issues")
-    
+
     # =================================================================
     # PHASE 2: Garbage Collection (DELETE empty/temp files)
     # =================================================================
@@ -91,9 +89,9 @@ def main():
     print("  - Delete empty files (0 bytes)")
     print("  - Delete temporary files")
     print("-" * 50)
-    
+
     run_phase(config, AnalysisMode.GARBAGE, "garbage files")
-    
+
     # =================================================================
     # PHASE 3: Deduplication (DELETE duplicates, handle versions)
     # =================================================================
@@ -102,9 +100,9 @@ def main():
     print("  - Remove duplicate files (keep oldest)")
     print("  - Handle files with same name, different content")
     print("-" * 50)
-    
+
     run_phase(config, AnalysisMode.DEDUPLICATION, "duplicates and versions")
-    
+
     # =================================================================
     # PHASE 4: Consolidation (MOVE unique files from Y to X)
     # =================================================================
@@ -112,7 +110,7 @@ def main():
     print("PHASE 4: Consolidation")
     print("  - Move unique files from source to target")
     print("-" * 50)
-    
+
     run_phase(config, AnalysisMode.CONSOLIDATION, "files to consolidate")
 
     print("\n" + "=" * 50)
