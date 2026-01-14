@@ -11,13 +11,7 @@ from .analyzer import ActionType
 
 
 class ActionExecutor:
-    """Executes file operations based on suggested actions.
-
-    Supports interactive confirmation with 'always' mode for batch operations.
-    """
-
     def __init__(self):
-        """Initialize executor with all 'always' flags disabled."""
         self._always = {
             ActionType.DELETE: False,
             ActionType.RENAME: False,
@@ -28,11 +22,6 @@ class ActionExecutor:
         }
 
     def process_suggestions(self, suggestions):
-        """Process list of suggested actions with user interaction.
-
-        Args:
-            suggestions: List of SuggestedAction objects.
-        """
         if not suggestions:
             print("No actions to perform.")
             return
@@ -60,11 +49,6 @@ class ActionExecutor:
                 print("Skipped.")
 
     def _display_action(self, action):
-        """Display action details to user.
-
-        Args:
-            action: SuggestedAction object.
-        """
         print(f"\nFILE: {action.file_entry.path}")
         print(f"ISSUE: {action.reason}")
 
@@ -72,20 +56,10 @@ class ActionExecutor:
         print(f"ACTION: {action.action_type.value}{target_info}")
 
     def _get_user_choice(self):
-        """Get user input for action confirmation.
-
-        Returns:
-            str: Single character choice ('y', 'n', 'a', or 'q').
-        """
         prompt = "Confirm: [y]es, [n]o, [a]lways for this type, [q]uit: "
         return input(prompt).lower().strip()[:1]
 
     def _execute(self, action):
-        """Execute a single action.
-
-        Args:
-            action: SuggestedAction object.
-        """
         handlers = {
             ActionType.DELETE: self._do_delete,
             ActionType.RENAME: self._do_rename,
@@ -103,25 +77,21 @@ class ActionExecutor:
             print(f"Error: {e}")
 
     def _do_delete(self, action):
-        """Delete a file."""
         os.remove(action.file_entry.path)
         print("Deleted.")
 
     def _do_rename(self, action):
-        """Rename a file in its current directory."""
         dir_path = os.path.dirname(action.file_entry.path)
         new_path = self._resolve_collision(dir_path, action.target)
         os.rename(action.file_entry.path, new_path)
         print(f"Renamed to: {os.path.basename(new_path)}")
 
     def _do_chmod(self, action):
-        """Change file permissions."""
         mode = int(str(action.target), 8)
         os.chmod(action.file_entry.path, mode)
         print(f"Permissions set to: {action.target}")
 
     def _do_move(self, action):
-        """Move a file to target path (overwrites existing)."""
         target_dir = os.path.dirname(action.target)
 
         if not os.path.exists(target_dir):
@@ -136,7 +106,6 @@ class ActionExecutor:
         print(f"Moved to: {target_path}")
 
     def _do_copy(self, action):
-        """Copy a file to target path (keeps original, overwrites target)."""
         target_dir = os.path.dirname(action.target)
 
         if not os.path.exists(target_dir):
@@ -149,19 +118,9 @@ class ActionExecutor:
         print(f"Copied to: {target_path}")
 
     def _do_skip(self, action):
-        """Skip action (no operation)."""
         print("Skipped.")
 
     def _resolve_collision(self, directory, filename):
-        """Generate unique path if file already exists.
-
-        Args:
-            directory: Target directory path.
-            filename: Desired filename.
-
-        Returns:
-            str: Unique file path.
-        """
         path = os.path.join(directory, filename)
 
         if not os.path.exists(path):

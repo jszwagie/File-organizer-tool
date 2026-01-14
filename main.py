@@ -15,14 +15,6 @@ from src.executor import ActionExecutor
 
 
 def scan_directories(config):
-    """Scan all directories and return file list.
-
-    Args:
-        config: AppConfig object.
-
-    Returns:
-        list[FileEntry]: List of scanned files.
-    """
     scanner = FileScanner()
     all_files = scanner.scan([config.target_dir] + config.source_dirs)
     print(f"Found {len(all_files)} file(s)")
@@ -34,17 +26,7 @@ def scan_directories(config):
 
 
 def run_phase(config, mode, phase_name):
-    """Run a single analysis phase.
-
-    Args:
-        config: AppConfig object.
-        mode: AnalysisMode for this phase.
-        phase_name: Human-readable phase name.
-
-    Returns:
-        bool: True if any actions were executed.
-    """
-    print(f"\nScanning directories...")
+    print("\nScanning directories...")
     all_files = scan_directories(config)
 
     print(f"Analyzing: {phase_name}...")
