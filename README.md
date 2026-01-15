@@ -31,6 +31,7 @@ python3 main.py <katalog_docelowy> <katalog_źródłowy1> [katalog_źródłowy2 
 | `katalog_docelowy` | Katalog docelowy (X), gdzie zostaną skonsolidowane wszystkie pliki |
 | `katalog_źródłowy` | Jeden lub więcej katalogów źródłowych (Y1, Y2, ...) do przeszukania |
 | `--config` | Ścieżka do pliku konfiguracyjnego (domyślnie: `~/.clean_files`) |
+| `--auto-all` | Tryb automatyczny - wykonuje wszystkie akcje bez pytania o potwierdzenie |
 
 ### Podstawowe wywołanie
 
@@ -43,6 +44,14 @@ python3 main.py /home/user/Documents /home/user/Downloads /home/user/Backup
 ```bash
 python3 main.py /target /source1 /source2 --config ./my_config.ini
 ```
+
+### Tryb automatyczny (nieinteraktywny)
+
+```bash
+python3 main.py /target /source1 /source2 --auto-all
+```
+
+W trybie `--auto-all` program wykonuje wszystkie sugerowane akcje automatycznie, bez pytania o potwierdzenie. Przydatne do skryptów i automatyzacji.
 
 ## Konfiguracja
 
