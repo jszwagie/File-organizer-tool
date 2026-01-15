@@ -11,13 +11,14 @@ import sys
 
 
 class AppConfig:
-    def __init__(self, target_dir, source_dirs, settings):
+    def __init__(self, target_dir, source_dirs, settings, auto_all=False):
         self.target_dir = os.path.abspath(target_dir)
         self.source_dirs = [os.path.abspath(d) for d in source_dirs]
         self.bad_chars = set(settings.get("bad_chars", "").split())
         self.replacement = settings.get("replacement_char", "_")
         self.temp_exts = set(settings.get("temp_extensions", "").split())
         self.default_perm = settings.get("default_permissions", "644")
+        self.auto_all = auto_all
 
 
 def load_configuration():
@@ -26,24 +27,25 @@ def load_configuration():
         epilog="Example: python main.py /target/dir /source1 /source2",
     )
     parser.add_argument(
-        "target_dir",
-        help="Main directory (X) where files should be consolidated"
+        "target_dir", help="Main directory (X) where files should be consolidated"
     )
     parser.add_argument(
-        "source_dirs", nargs="+",
-        help="Additional directories to scan (Y1, Y2...)"
+        "source_dirs", nargs="+", help="Additional directories to scan (Y1, Y2...)"
     )
     parser.add_argument(
         "--config",
         default=os.path.expanduser("~/.clean_files"),
         help="Path to configuration file (default: ~/.clean_files)",
     )
+    parser.add_argument(
+        "--auto-all",
+        action="store_true",
+        help="Run non-interactively, auto-accept all actions",
+    )
 
     args = parser.parse_args()
 
-    config_path = (
-        args.config if os.path.exists(args.config) else ".clean_files"
-    )
+    config_path = args.config if os.path.exists(args.config) else ".clean_files"
 
     if not os.path.exists(config_path):
         print(f"Error: Configuration file not found: {config_path}")
@@ -56,5 +58,6 @@ def load_configuration():
         print("Error: Configuration file missing [Settings] section")
         sys.exit(1)
 
-    return AppConfig(args.target_dir, args.source_dirs,
-                     config_parser["Settings"])
+    return AppConfig(
+        args.target_dir, args.source_dirs, config_parser["Settings"], args.auto_all
+    )

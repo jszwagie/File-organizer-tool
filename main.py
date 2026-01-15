@@ -35,7 +35,7 @@ def run_phase(config, mode, phase_name):
 
     if suggestions:
         print(f"Found {len(suggestions)} action(s).")
-        executor = ActionExecutor()
+        executor = ActionExecutor(config.auto_all)
         executor.process_suggestions(suggestions)
         return True
     else:

@@ -11,7 +11,8 @@ from .analyzer import ActionType
 
 
 class ActionExecutor:
-    def __init__(self):
+    def __init__(self, auto_all=False):
+        self._auto_all = auto_all
         self._always = {
             ActionType.DELETE: False,
             ActionType.RENAME: False,
@@ -31,7 +32,7 @@ class ActionExecutor:
         for action in suggestions:
             self._display_action(action)
 
-            if self._always.get(action.action_type, False):
+            if self._auto_all or self._always.get(action.action_type, False):
                 self._execute(action)
                 continue
 
